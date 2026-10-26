@@ -12,7 +12,6 @@ export class Game {
     this.player = { x: WIDTH / 2, y: 568, radius: 17, health: 5, maxHealth: 5, invulnerable: 0 };
     this.arrows = [];
     this.targets = [];
-    this.enemyShots = [];
     this.orbs = [];
     this.particles = [];
     this.score = 0;
@@ -112,7 +111,6 @@ export class Game {
 
     for (let i = this.arrows.length - 1; i >= 0; i -= 1) this.updateArrow(i, dt);
     for (let i = this.targets.length - 1; i >= 0; i -= 1) this.updateTarget(this.targets[i], dt);
-    for (let i = this.enemyShots.length - 1; i >= 0; i -= 1) this.updateEnemyShot(i, dt);
     this.updateOrbs(dt);
     this.updateParticles(dt);
   }
@@ -146,7 +144,7 @@ export class Game {
       vy: type === "balloon" ? 1.5 : (type === "boss" ? 0 : 4 + this.wave * 0.25),
       radius: config.radius, drift: config.drift, health: config.health, maxHealth: config.health,
       xp: config.xp, color: config.color, phase: Math.random() * 6,
-      slowTimer: 0, shootTimer: type === "boss" ? 2.8 : (type === "brute" ? 4 : 5 + Math.random() * 2),
+      slowTimer: 0,
     });
   }
 
@@ -158,28 +156,13 @@ export class Game {
     if (target.x < target.radius || target.x > WIDTH - target.radius) target.vx *= -1;
     target.x = Math.max(target.radius, Math.min(WIDTH - target.radius, target.x));
 
-    if (target.type === "boss" || target.type === "brute") {
-      target.shootTimer -= dt;
-      if (target.shootTimer <= 0) {
-        this.fireEnemyShot(target);
-        target.shootTimer = target.type === "boss" ? 2.8 : 4.5;
-      }
-    }
-    if (target.y > 548) {
+    const playerDistance = Math.hypot(target.x - this.player.x, target.y - this.player.y);
+    if (playerDistance <= target.radius + this.player.radius) {
       this.damagePlayer(target.type === "boss" ? 2 : 1);
       this.removeTarget(target);
+      return;
     }
-  }
-
-  fireEnemyShot(target) {
-    const dx = this.player.x - target.x;
-    const dy = this.player.y - target.y;
-    const length = Math.max(1, Math.hypot(dx, dy));
-    const speed = target.type === "boss" ? 145 : 105;
-    this.enemyShots.push({
-      x: target.x, y: target.y, vx: dx / length * speed, vy: dy / length * speed,
-      radius: target.type === "boss" ? 7 : 5,
-    });
+    if (target.y > 548) this.removeTarget(target);
   }
 
   updateArrow(index, dt) {
@@ -268,18 +251,6 @@ export class Game {
     if (target.type === "boss") {
       this.mode = "bossloot";
       this.currentChoices = getBossRewardChoices(this);
-    }
-  }
-
-  updateEnemyShot(index, dt) {
-    const shot = this.enemyShots[index];
-    shot.x += shot.vx * dt;
-    shot.y += shot.vy * dt;
-    if (Math.hypot(shot.x - this.player.x, shot.y - (this.player.y - 7)) < shot.radius + 14) {
-      this.enemyShots.splice(index, 1);
-      this.damagePlayer(1);
-    } else if (shot.x < -20 || shot.x > WIDTH + 20 || shot.y < -20 || shot.y > HEIGHT + 20) {
-      this.enemyShots.splice(index, 1);
     }
   }
 

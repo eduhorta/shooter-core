@@ -37,7 +37,6 @@ export class Renderer {
     this.drawWorld(ctx, game.time);
     this.drawTargets(ctx, game.targets);
     this.drawOrbs(ctx, game.orbs);
-    this.drawEnemyShots(ctx, game.enemyShots);
     this.drawParticles(ctx, game.particles);
     this.drawArrows(ctx, game.arrows);
     this.drawPlayer(ctx, game.player);
@@ -219,19 +218,6 @@ export class Renderer {
       ctx.fillStyle = "rgba(255,255,255,.75)";
       ctx.beginPath();
       ctx.arc(orb.x - 1.5, orb.y - 1.5, 1.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-
-  drawEnemyShots(ctx, shots) {
-    for (const shot of shots) {
-      ctx.save();
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = "#ff4f70";
-      ctx.fillStyle = "#ff7187";
-      ctx.beginPath();
-      ctx.arc(shot.x, shot.y, shot.radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
