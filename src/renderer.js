@@ -42,7 +42,7 @@ export class Renderer {
     this.drawParticles(ctx, game.particles);
     this.drawArrows(ctx, game.arrows);
     this.drawPlayer(ctx, game.player, aim);
-    if (aim && dragMode === "aim" && game.mode === "playing") this.drawTrajectory(ctx, game.player, aim);
+    if (aim && dragMode === "aim" && game.mode === "playing") this.drawTrajectory(ctx, game.player, aim, game.levelOf("arrowVelocity"));
     if (game.hitFlash > 0) {
       ctx.fillStyle = "rgba(255, 64, 87, " + (game.hitFlash * 0.28) + ")";
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -342,8 +342,8 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawTrajectory(ctx, player, aim) {
-    const speed = (450 + 320 * aim.power);
+  drawTrajectory(ctx, player, aim, velocityLevel) {
+    const speed = (450 + 320 * aim.power) * (1 + velocityLevel * 0.12);
     const vx = Math.cos(aim.angle) * speed;
     let x = player.x;
     let y = player.y - 23;
