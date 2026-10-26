@@ -65,7 +65,7 @@ export class Game {
   fire() {
     if (this.mode !== "playing") return false;
     const velocityLevel = this.levelOf("arrowVelocity");
-    const speed = 570 * (1 + velocityLevel * 0.12);
+    const speed = 570 * (1 + velocityLevel * 0.12 + this.levelOf("bracer") * 0.1);
     const multi = this.levelOf("multishot");
     const duplicator = this.levelOf("duplicator");
     const count = 1 + multi + duplicator + (this.evolvedStorm ? 2 : 0);
@@ -85,7 +85,7 @@ export class Game {
         this.player.x, this.player.y - 23,
         Math.cos(angle) * speed, -Math.sin(angle) * speed,
         {
-          damage: 1 + this.levelOf("attackPower") + (this.evolvedBallista ? 2 : 0),
+          damage: 1 + this.levelOf("attackPower") + this.levelOf("bracer") + (this.evolvedBallista ? 2 : 0),
           pierceLeft: this.evolvedBallista ? 99 : this.levelOf("piercing"),
           bouncesLeft: this.levelOf("ricochet"),
           gravity: 0,
@@ -225,10 +225,10 @@ export class Game {
 
   applyElement(arrow, target) {
     if (arrow.element === "ice") {
-      target.slowTimer = this.evolvedGlacial ? 5 : 3.2;
+      target.slowTimer = (this.evolvedGlacial ? 5 : 3.2) + this.levelOf("spellbinder") * 0.5;
       if (this.evolvedGlacial) {
         for (const nearby of this.targets) {
-          if (nearby !== target && Math.hypot(nearby.x - target.x, nearby.y - target.y) < 88) nearby.slowTimer = 4;
+          if (nearby !== target && Math.hypot(nearby.x - target.x, nearby.y - target.y) < 88) nearby.slowTimer = 4 + this.levelOf("spellbinder") * 0.5;
         }
         this.burst(target.x, target.y, "#9be8ff", 10);
       }
