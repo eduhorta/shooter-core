@@ -1,30 +1,33 @@
 # Shooter Core
 
-Protótipo inicial de um jogo de arqueiro mobile-first em Canvas 2D. O projeto usa módulos JavaScript nativos e não precisa de dependências ou etapa de build.
+Jogo mobile-first de arqueiro e sobrevivência em Canvas 2D, com módulos ES nativos e sem dependências de build.
 
 ## Executar localmente
 
-Sirva a pasta por um servidor HTTP local, por exemplo:
-
-    python -m http.server 8000
-
-Depois abra http://localhost:8000 no navegador. Módulos ES não carregam de forma confiável via file://.
+Sirva esta pasta por HTTP, por exemplo com python -m http.server 8000, e abra http://localhost:8000. Módulos ES não carregam de forma confiável via file://.
 
 ## Controles
 
-- Toque e arraste acima da base para mirar; solte para disparar.
-- Quanto mais longe o arrasto, maior a potência.
-- Arraste na faixa inferior para mover o arqueiro pela base.
-- A linha pontilhada mostra a trajetória aproximada da flecha.
+- Toque/arraste acima da base para mirar; solte para disparar. O comprimento do arrasto regula a força.
+- Arraste na faixa inferior para mover o arqueiro.
+- A linha pontilhada mostra a trajetória aproximada.
+- Escolha uma carta de upgrade quando subir de nível.
+
+## Sistemas implementados
+
+- Ondas com balões, morcegos, brutos e chefes; inimigos ativos descem e alguns disparam contra a base.
+- Vida, dano, invulnerabilidade curta e tela de derrota com reinício.
+- Orbes de XP com atração magnética e pausa de level-up com três escolhas.
+- Upgrades de multi-shot, perfuração, ricochete, recarga, dano, ímã, velocidade e flechas elementais.
+- Evolução Flecha de Fogo + Amuleto de Combustão em Flecha de Fênix.
+- Pools reutilizáveis de flechas, partículas e orbes.
 
 ## Estrutura
 
-- index.html: interface e canvas.
-- styles.css: layout vertical e responsivo.
-- src/main.js: inicialização e game loop.
+- index.html e styles.css: interface vertical responsiva e HUD.
+- src/main.js: loop e inicialização.
 - src/input.js: Pointer Events para mouse, toque e caneta.
-- src/game.js: estado, física, alvos, colisões e pontuação.
-- src/renderer.js: desenho no canvas com escala lógica 360 × 640.
-- src/pool.js: reutilização de objetos de flecha e impacto.
-
-A base prepara o loop de mira e disparo. Próximos passos sugeridos: vida e ondas, gemas de XP, pausa de level-up e seleção de upgrades.
+- src/game.js: entidades, física, combate, ondas, XP e progressão.
+- src/upgrades.js e src/ui.js: cartas e interface de level-up/derrota.
+- src/renderer.js: desenho Canvas em mundo lógico 360 × 640.
+- src/pool.js: reutilização de objetos.

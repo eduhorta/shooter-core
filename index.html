@@ -4,31 +4,40 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#101727">
-    <meta name="description" content="Um protótipo mobile de arqueiro e sobrevivência.">
+    <meta name="description" content="Um jogo mobile de arqueiro e sobrevivência.">
     <title>Shooter Core</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <main class="game-shell" aria-label="Shooter Core">
       <header class="topbar">
-        <div>
+        <div class="brand">
           <p class="eyebrow">ARQUEIRO • SOBREVIVÊNCIA</p>
           <h1>Shooter Core</h1>
         </div>
-        <div class="score" aria-live="polite">
-          <span class="score-label">ALVOS</span>
-          <strong id="score">0</strong>
+        <div class="stats" aria-live="polite">
+          <div class="stat"><span>ONDA</span><strong id="wave">1</strong></div>
+          <div class="stat"><span>NÍVEL</span><strong id="level">1</strong></div>
+          <div class="stat"><span>ALVOS</span><strong id="score">0</strong></div>
         </div>
       </header>
 
       <section class="game-stage" aria-label="Área do jogo">
         <canvas id="game" aria-label="Jogo de arqueiro. Arraste para mirar e solte para atirar."></canvas>
         <div class="stage-hint" id="hint">Arraste para mirar · solte para atirar</div>
+        <section class="game-overlay" id="game-overlay" aria-live="polite" hidden></section>
       </section>
 
-      <footer class="controls">
-        <span class="control-icon" aria-hidden="true">↗</span>
-        <p>Mire para cima e ajuste a força pelo comprimento do arrasto.</p>
+      <footer class="bottom-bar">
+        <div class="health-block">
+          <div class="bar-label"><span>VIDA</span><strong id="health-label">5 / 5</strong></div>
+          <div class="meter health-meter"><span id="health-bar"></span></div>
+        </div>
+        <div class="xp-block">
+          <div class="bar-label"><span>EXPERIÊNCIA</span><strong id="xp-label">0 / 5</strong></div>
+          <div class="meter xp-meter"><span id="xp-bar"></span></div>
+        </div>
+        <p class="controls-hint">Mire e solte para disparar. Arraste na base para se mover.</p>
       </footer>
     </main>
     <script type="module" src="./src/main.js"></script>
