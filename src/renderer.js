@@ -1,7 +1,6 @@
 const WIDTH = 360;
 const HEIGHT = 640;
 const GROUND_Y = 600;
-const GRAVITY = 310;
 
 export class Renderer {
   constructor(canvas) {
@@ -33,7 +32,7 @@ export class Renderer {
     return ctx;
   }
 
-  render(game, aim, dragMode) {
+  render(game) {
     const ctx = this.beginFrame();
     this.drawWorld(ctx, game.time);
     this.drawTargets(ctx, game.targets);
@@ -41,8 +40,7 @@ export class Renderer {
     this.drawEnemyShots(ctx, game.enemyShots);
     this.drawParticles(ctx, game.particles);
     this.drawArrows(ctx, game.arrows);
-    this.drawPlayer(ctx, game.player, aim);
-    if (aim && dragMode === "aim" && game.mode === "playing") this.drawTrajectory(ctx, game.player, aim, game.levelOf("arrowVelocity"));
+    this.drawPlayer(ctx, game.player);
     if (game.hitFlash > 0) {
       ctx.fillStyle = "rgba(255, 64, 87, " + (game.hitFlash * 0.28) + ")";
       ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -56,7 +54,6 @@ export class Renderer {
     sky.addColorStop(1, "#263a50");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
     for (let i = 0; i < 38; i += 1) {
       const x = (i * 97 + 21) % WIDTH;
       const y = (i * 67 + 26) % 440;
@@ -67,7 +64,6 @@ export class Renderer {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-
     ctx.fillStyle = "rgba(8, 15, 26, .28)";
     ctx.beginPath();
     ctx.moveTo(0, 490);
@@ -76,7 +72,6 @@ export class Renderer {
     ctx.lineTo(WIDTH, GROUND_Y);
     ctx.lineTo(0, GROUND_Y);
     ctx.fill();
-
     const ground = ctx.createLinearGradient(0, GROUND_Y, 0, HEIGHT);
     ground.addColorStop(0, "#3c725d");
     ground.addColorStop(1, "#1d3f3d");
@@ -254,9 +249,9 @@ export class Renderer {
   }
 
   drawArrows(ctx, arrows) {
+    const colors = { fire: "#ff9c5b", phoenix: "#ffe37d", ice: "#9be8ff", lightning: "#d2b1ff" };
     for (const arrow of arrows) {
       const angle = Math.atan2(arrow.vy, arrow.vx);
-      const colors = { fire: "#ff9c5b", phoenix: "#ffe37d", ice: "#9be8ff", lightning: "#d2b1ff" };
       ctx.save();
       ctx.translate(arrow.x, arrow.y);
       ctx.rotate(angle);
@@ -286,9 +281,9 @@ export class Renderer {
     }
   }
 
-  drawPlayer(ctx, player, aim) {
+  drawPlayer(ctx, player) {
     ctx.save();
-    if (player.invulnerable > 0 && Math.floor(player.invulnerable * 14) % 2 === 0) ctx.globalAlpha = 0.5;
+    if (player.invulnerable > 0 && Math.floor(player.invulnerable * 10) % 2 === 0) ctx.globalAlpha = 0.5;
     ctx.translate(player.x, player.y);
     ctx.fillStyle = "rgba(7, 15, 23, .32)";
     ctx.beginPath();
@@ -322,10 +317,8 @@ export class Renderer {
     ctx.lineTo(-9, -15);
     ctx.fill();
 
-    const angle = aim ? aim.angle : Math.PI / 2;
     ctx.save();
     ctx.translate(5, -12);
-    ctx.rotate(-angle);
     ctx.strokeStyle = "#b67b44";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
@@ -339,28 +332,6 @@ export class Renderer {
     ctx.arc(0, -13, 17, -1.13, 1.13);
     ctx.stroke();
     ctx.restore();
-    ctx.restore();
-  }
-
-  drawTrajectory(ctx, player, aim, velocityLevel) {
-    const speed = (450 + 320 * aim.power) * (1 + velocityLevel * 0.12);
-    const vx = Math.cos(aim.angle) * speed;
-    let x = player.x;
-    let y = player.y - 23;
-    let vy = -Math.sin(aim.angle) * speed;
-    ctx.save();
-    ctx.fillStyle = "#ffe19a";
-    for (let i = 0; i < 28; i += 1) {
-      const dt = 0.075;
-      vy += GRAVITY * dt;
-      x += vx * dt;
-      y += vy * dt;
-      if (x < 0 || x > WIDTH || y < 0 || y > HEIGHT) break;
-      ctx.globalAlpha = (1 - i / 30) * 0.72;
-      ctx.beginPath();
-      ctx.arc(x, y, Math.max(1.2, 3 - i * 0.06), 0, Math.PI * 2);
-      ctx.fill();
-    }
     ctx.restore();
   }
 
