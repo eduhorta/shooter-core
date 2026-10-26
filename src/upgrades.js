@@ -1,3 +1,11 @@
+const BOSS_REWARDS = [
+  { id: "royalQuiver", name: "Aljava Real", icon: "🏹", description: "Adiciona uma flecha a cada salva.", max: 2 },
+  { id: "heartwood", name: "Coração de Carvalho", icon: "♥", description: "Aumenta a vida máxima e recupera 1 ponto.", max: 3 },
+  { id: "colossusFang", name: "Presa do Colosso", icon: "✦", description: "Aumenta o dano de todas as flechas.", max: 3 },
+  { id: "soulCompass", name: "Bússola das Almas", icon: "◉", description: "Cada gema concederá mais experiência.", max: 3 },
+  { id: "starFragment", name: "Fragmento Estelar", icon: "✧", description: "Acelera um pouco os disparos automáticos.", max: Infinity },
+];
+
 const UPGRADES = [
   { id: "multishot", name: "Tiro múltiplo", icon: "➶", description: "Adiciona uma flecha à salva diagonal.", max: 3 },
   { id: "duplicator", name: "Duplicador", icon: "✣", description: "Dispara mais uma flecha por salva.", max: 2 },
@@ -44,4 +52,18 @@ export function getUpgradeChoices(game) {
     [choices[i], choices[j]] = [choices[j], choices[i]];
   }
   return choices.slice(0, Math.min(3, choices.length));
+}
+
+export function getBossRewardChoices(game) {
+  const choices = BOSS_REWARDS
+    .filter((item) => (game.bossItems[item.id] || 0) < item.max)
+    .map((item) => ({
+      ...item,
+      description: item.description + ((game.bossItems[item.id] || 0) ? " Pilha " + ((game.bossItems[item.id] || 0) + 1) + "." : ""),
+    }));
+  for (let i = choices.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+  return choices.slice(0, 3);
 }
