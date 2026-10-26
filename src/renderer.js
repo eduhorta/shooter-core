@@ -7,9 +7,6 @@ export class Renderer {
   constructor(canvas) {
     this.canvas = canvas;
     this.context = canvas.getContext("2d", { alpha: false });
-    this.scale = 1;
-    this.offsetX = 0;
-    this.offsetY = 0;
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(canvas);
     this.resize();
@@ -40,34 +37,36 @@ export class Renderer {
     const ctx = this.beginFrame();
     this.drawWorld(ctx, game.time);
     this.drawTargets(ctx, game.targets);
+    this.drawOrbs(ctx, game.orbs);
+    this.drawEnemyShots(ctx, game.enemyShots);
     this.drawParticles(ctx, game.particles);
     this.drawArrows(ctx, game.arrows);
     this.drawPlayer(ctx, game.player, aim);
-    if (aim && dragMode === "aim") this.drawTrajectory(ctx, game.player, aim);
-    this.drawHud(ctx, game);
+    if (aim && dragMode === "aim" && game.mode === "playing") this.drawTrajectory(ctx, game.player, aim);
+    if (game.hitFlash > 0) {
+      ctx.fillStyle = "rgba(255, 64, 87, " + (game.hitFlash * 0.28) + ")";
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    }
   }
 
   drawWorld(ctx, time) {
     const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
     sky.addColorStop(0, "#15243b");
-    sky.addColorStop(0.7, "#1d3150");
+    sky.addColorStop(0.68, "#1d3150");
     sky.addColorStop(1, "#263a50");
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-    ctx.save();
-    ctx.globalAlpha = 0.28;
-    for (let i = 0; i < 34; i += 1) {
+    for (let i = 0; i < 38; i += 1) {
       const x = (i * 97 + 21) % WIDTH;
-      const y = (i * 67 + 26) % 430;
-      const twinkle = 0.45 + Math.sin(time * 1.7 + i) * 0.2;
+      const y = (i * 67 + 26) % 440;
+      ctx.globalAlpha = 0.27 + Math.sin(time * 1.7 + i) * 0.1;
       ctx.fillStyle = "#d5e6ff";
-      ctx.globalAlpha = twinkle;
       ctx.beginPath();
       ctx.arc(x, y, i % 5 === 0 ? 1.5 : 1, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.restore();
+    ctx.globalAlpha = 1;
 
     ctx.fillStyle = "rgba(8, 15, 26, .28)";
     ctx.beginPath();
@@ -93,24 +92,151 @@ export class Renderer {
     for (const target of targets) {
       ctx.save();
       ctx.translate(target.x, target.y);
-      ctx.strokeStyle = "rgba(235, 241, 251, .72)";
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(0, target.radius - 1);
-      ctx.quadraticCurveTo(3, target.radius + 7, 0, target.radius + 13);
-      ctx.stroke();
+      if (target.type === "balloon") this.drawBalloon(ctx, target);
+      else if (target.type === "bat") this.drawBat(ctx, target);
+      else if (target.type === "boss") this.drawBoss(ctx, target);
+      else this.drawBrute(ctx, target);
+      if (target.maxHealth > 1) this.drawHealthBar(ctx, target);
+      ctx.restore();
+    }
+  }
 
-      const glow = ctx.createRadialGradient(-5, -7, 2, 0, 0, target.radius + 3);
-      glow.addColorStop(0, "#fff3da");
-      glow.addColorStop(0.32, target.color);
-      glow.addColorStop(1, "#c84266");
-      ctx.fillStyle = glow;
+  drawBalloon(ctx, target) {
+    ctx.strokeStyle = "rgba(235, 241, 251, .72)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(0, target.radius - 1);
+    ctx.quadraticCurveTo(3, target.radius + 7, 0, target.radius + 13);
+    ctx.stroke();
+    const glow = ctx.createRadialGradient(-5, -7, 2, 0, 0, target.radius + 3);
+    glow.addColorStop(0, "#fff3da");
+    glow.addColorStop(0.32, target.color);
+    glow.addColorStop(1, "#c84266");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, target.radius * 0.82, target.radius, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.55)";
+    ctx.beginPath();
+    ctx.ellipse(-target.radius * 0.27, -target.radius * 0.36, 3, 5, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawBat(ctx, target) {
+    ctx.fillStyle = "rgba(9, 12, 28, .88)";
+    ctx.beginPath();
+    ctx.moveTo(-4, -2);
+    ctx.quadraticCurveTo(-target.radius - 14, -target.radius - 10, -target.radius - 8, 7);
+    ctx.quadraticCurveTo(-target.radius, 3, -4, 8);
+    ctx.quadraticCurveTo(target.radius, 3, target.radius + 8, 7);
+    ctx.quadraticCurveTo(target.radius + 14, -target.radius - 10, 4, -2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = target.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 1, target.radius * 0.48, target.radius * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffebaa";
+    ctx.beginPath();
+    ctx.arc(-5, 0, 2.2, 0, Math.PI * 2);
+    ctx.arc(5, 0, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawBrute(ctx, target) {
+    ctx.fillStyle = target.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, target.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffe2bd";
+    ctx.beginPath();
+    ctx.moveTo(-13, -target.radius + 5);
+    ctx.lineTo(-18, -target.radius - 7);
+    ctx.lineTo(-5, -target.radius + 1);
+    ctx.moveTo(13, -target.radius + 5);
+    ctx.lineTo(18, -target.radius - 7);
+    ctx.lineTo(5, -target.radius + 1);
+    ctx.fill();
+    ctx.fillStyle = "#382b39";
+    ctx.beginPath();
+    ctx.arc(-8, -2, 3, 0, Math.PI * 2);
+    ctx.arc(8, -2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#693744";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 7, 7, 0.1, Math.PI - 0.1);
+    ctx.stroke();
+  }
+
+  drawBoss(ctx, target) {
+    ctx.fillStyle = "#762f58";
+    ctx.beginPath();
+    for (let i = 0; i < 12; i += 1) {
+      const angle = -Math.PI / 2 + i * Math.PI / 6;
+      const radius = i % 2 === 0 ? target.radius + 8 : target.radius - 3;
+      const x = Math.cos(angle) * radius;
+      const y = Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    const glow = ctx.createRadialGradient(-8, -10, 2, 0, 0, target.radius);
+    glow.addColorStop(0, "#ffd2b2");
+    glow.addColorStop(0.24, "#ff6a7d");
+    glow.addColorStop(1, "#a83262");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, target.radius - 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff0a8";
+    ctx.beginPath();
+    ctx.arc(-10, -3, 4, 0, Math.PI * 2);
+    ctx.arc(10, -3, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#492344";
+    ctx.beginPath();
+    ctx.ellipse(0, 12, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawHealthBar(ctx, target) {
+    const width = target.radius * 2;
+    const y = -target.radius - 13;
+    ctx.fillStyle = "rgba(7, 12, 22, .72)";
+    ctx.fillRect(-width / 2, y, width, 4);
+    ctx.fillStyle = target.type === "boss" ? "#ff5f79" : "#ffbc69";
+    ctx.fillRect(-width / 2, y, width * Math.max(0, target.health / target.maxHealth), 4);
+  }
+
+  drawOrbs(ctx, orbs) {
+    for (const orb of orbs) {
+      const pulse = 1 + Math.sin(orb.phase) * 0.13;
+      ctx.save();
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = "#66e0d1";
+      ctx.fillStyle = "#8be7d0";
       ctx.beginPath();
-      ctx.ellipse(0, 0, target.radius * 0.82, target.radius, 0, 0, Math.PI * 2);
+      ctx.arc(orb.x, orb.y, orb.radius * pulse, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,.55)";
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "rgba(255,255,255,.75)";
       ctx.beginPath();
-      ctx.ellipse(-target.radius * 0.27, -target.radius * 0.36, 3, 5, -0.5, 0, Math.PI * 2);
+      ctx.arc(orb.x - 1.5, orb.y - 1.5, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  drawEnemyShots(ctx, shots) {
+    for (const shot of shots) {
+      ctx.save();
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = "#ff4f70";
+      ctx.fillStyle = "#ff7187";
+      ctx.beginPath();
+      ctx.arc(shot.x, shot.y, shot.radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
@@ -130,10 +256,11 @@ export class Renderer {
   drawArrows(ctx, arrows) {
     for (const arrow of arrows) {
       const angle = Math.atan2(arrow.vy, arrow.vx);
+      const colors = { fire: "#ff9c5b", phoenix: "#ffe37d", ice: "#9be8ff", lightning: "#d2b1ff" };
       ctx.save();
       ctx.translate(arrow.x, arrow.y);
       ctx.rotate(angle);
-      ctx.strokeStyle = "#f7e2ba";
+      ctx.strokeStyle = colors[arrow.element] || "#f7e2ba";
       ctx.lineWidth = 2.6;
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -161,12 +288,12 @@ export class Renderer {
 
   drawPlayer(ctx, player, aim) {
     ctx.save();
+    if (player.invulnerable > 0 && Math.floor(player.invulnerable * 14) % 2 === 0) ctx.globalAlpha = 0.5;
     ctx.translate(player.x, player.y);
     ctx.fillStyle = "rgba(7, 15, 23, .32)";
     ctx.beginPath();
     ctx.ellipse(0, 26, 27, 7, 0, 0, Math.PI * 2);
     ctx.fill();
-
     ctx.strokeStyle = "#d5a86e";
     ctx.lineWidth = 7;
     ctx.lineCap = "round";
@@ -176,7 +303,6 @@ export class Renderer {
     ctx.moveTo(7, 5);
     ctx.lineTo(11, 22);
     ctx.stroke();
-
     ctx.fillStyle = "#426f83";
     ctx.beginPath();
     ctx.moveTo(-15, -4);
@@ -185,7 +311,6 @@ export class Renderer {
     ctx.quadraticCurveTo(0, 17, -12, 10);
     ctx.closePath();
     ctx.fill();
-
     ctx.fillStyle = "#e6bd91";
     ctx.beginPath();
     ctx.arc(0, -16, 9, 0, Math.PI * 2);
@@ -208,7 +333,6 @@ export class Renderer {
     ctx.moveTo(0, 0);
     ctx.lineTo(0, -24);
     ctx.stroke();
-
     ctx.strokeStyle = "#f4d8a2";
     ctx.lineWidth = 1.7;
     ctx.beginPath();
@@ -219,10 +343,10 @@ export class Renderer {
   }
 
   drawTrajectory(ctx, player, aim) {
-    const speed = 470 + 330 * aim.power;
+    const speed = (450 + 320 * aim.power);
     const vx = Math.cos(aim.angle) * speed;
     let x = player.x;
-    let y = player.y - 22;
+    let y = player.y - 23;
     let vy = -Math.sin(aim.angle) * speed;
     ctx.save();
     ctx.fillStyle = "#ffe19a";
@@ -240,28 +364,5 @@ export class Renderer {
     ctx.restore();
   }
 
-  drawHud(ctx, game) {
-    ctx.save();
-    ctx.fillStyle = "rgba(7, 14, 25, .48)";
-    this.roundRect(ctx, 14, 14, 97, 37, 11);
-    ctx.fill();
-    ctx.fillStyle = "#9cacc2";
-    ctx.font = "700 8px system-ui, sans-serif";
-    ctx.letterSpacing = "1.2px";
-    ctx.fillText("PONTUAÇÃO", 25, 28);
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "700 16px system-ui, sans-serif";
-    ctx.letterSpacing = "0";
-    ctx.fillText(String(game.score).padStart(2, "0"), 25, 45);
-    ctx.restore();
-  }
-
-  roundRect(ctx, x, y, width, height, radius) {
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, radius);
-  }
-
-  destroy() {
-    this.resizeObserver.disconnect();
-  }
+  destroy() { this.resizeObserver.disconnect(); }
 }
