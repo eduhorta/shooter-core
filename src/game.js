@@ -3,7 +3,6 @@ import { getUpgradeChoices } from "./upgrades.js";
 
 const WIDTH = 360;
 const HEIGHT = 640;
-const GRAVITY = 310;
 const randomBetween = (min, max) => min + Math.random() * (max - min);
 
 export class Game {
@@ -19,22 +18,26 @@ export class Game {
     this.score = 0;
     this.time = 0;
     this.wave = 1;
-    this.spawnTimer = 0.6;
+    this.spawnTimer = 1.5;
     this.lastBossWave = 0;
     this.nextEntityId = 1;
     this.mode = "playing";
     this.level = 1;
     this.xp = 0;
-    this.xpToNext = 5;
+    this.xpToNext = 6;
     this.upgrades = {};
-    this.evolved = false;
+    this.evolvedPhoenix = false;
+    this.evolvedStorm = false;
+    this.evolvedGlacial = false;
+    this.evolvedBallista = false;
     this.currentChoices = [];
     this.hitFlash = 0;
-    this.reloadTimer = 0;
+    this.reloadTimer = 0.55;
+    this.movement = 0;
     this.arrowPool = new ObjectPool(
       () => ({}),
       (arrow, x, y, vx, vy, attributes) => Object.assign(arrow, {
-        x, y, vx, vy, life: 3, active: true, hitIds: new Set(), ...attributes,
+        x, y, vx, vy, gravity: 0, life: 3, active: true, hitIds: new Set(), ...attributes,
       }),
       16,
     );
@@ -57,33 +60,43 @@ export class Game {
     this.player.x = Math.max(35, Math.min(WIDTH - 35, x));
   }
 
-  fire(angle, power) {
-    if (this.mode !== "playing" || this.reloadTimer > 0) return false;
+  setMovement(direction) { this.movement = direction; }
+
+  fire() {
+    if (this.mode !== "playing") return false;
     const velocityLevel = this.levelOf("arrowVelocity");
-    const speed = (450 + 320 * power) * (1 + velocityLevel * 0.12);
+    const speed = 570 * (1 + velocityLevel * 0.12 + this.levelOf("bracer") * 0.1);
     const multi = this.levelOf("multishot");
-    const arrowCount = 1 + multi;
-    const spread = 0.12 + multi * 0.035;
-    for (let i = 0; i < arrowCount; i += 1) {
-      const offset = (i - (arrowCount - 1) / 2) * spread;
-      const shotAngle = angle + offset;
-      const elements = [];
-      if (this.levelOf("fireArrow") > 0) elements.push("fire");
-      if (this.levelOf("iceArrow") > 0) elements.push("ice");
-      if (this.levelOf("lightning") > 0) elements.push("lightning");
-      const element = this.evolved ? "phoenix" : (elements.length ? elements[Math.floor(Math.random() * elements.length)] : "normal");
-      this.arrows.push(this.arrowPool.acquire(
+    const duplicator = this.levelOf("duplicator");
+    const count = 1 + multi + duplicator + (this.evolvedStorm ? 2 : 0);
+    const spread = this.evolvedStorm ? 0.54 : (count > 1 ? 0.12 + count * 0.035 : 0);
+    const elementChoices = [];
+    if (this.levelOf("fireArrow") > 0) elementChoices.push("fire");
+    if (this.levelOf("iceArrow") > 0) elementChoices.push("ice");
+    if (this.levelOf("lightning") > 0) elementChoices.push("lightning");
+
+    for (let i = 0; i < count; i += 1) {
+      const offset = count > 1 ? ((i / (count - 1)) - 0.5) * spread : 0;
+      const angle = Math.PI / 2 + offset;
+      const element = this.evolvedPhoenix
+        ? "phoenix"
+        : (elementChoices.length ? elementChoices[Math.floor(Math.random() * elementChoices.length)] : "normal");
+      const arrow = this.arrowPool.acquire(
         this.player.x, this.player.y - 23,
-        Math.cos(shotAngle) * speed, -Math.sin(shotAngle) * speed,
+        Math.cos(angle) * speed, -Math.sin(angle) * speed,
         {
-          damage: 1 + this.levelOf("attackPower"),
-          pierceLeft: this.levelOf("piercing"),
+          damage: 1 + this.levelOf("attackPower") + this.levelOf("bracer") + (this.evolvedBallista ? 2 : 0),
+          pierceLeft: this.evolvedBallista ? 99 : this.levelOf("piercing"),
           bouncesLeft: this.levelOf("ricochet"),
+          gravity: 0,
           element,
         },
-      ));
+      );
+      this.arrows.push(arrow);
     }
-    this.reloadTimer = Math.max(0.12, 0.44 - this.levelOf("drawSpeed") * 0.055);
+
+    const cooldown = Math.max(0.48, 1.12 - this.levelOf("drawSpeed") * 0.13 - (this.evolvedStorm ? 0.12 : 0));
+    this.reloadTimer = cooldown;
     return true;
   }
 
@@ -91,15 +104,19 @@ export class Game {
     const dt = Math.min(delta, 1 / 30);
     if (this.mode !== "playing") return;
     this.time += dt;
-    this.wave = 1 + Math.floor(this.time / 24);
+    this.wave = 1 + Math.floor(this.time / 38);
     this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
-    this.reloadTimer = Math.max(0, this.reloadTimer - dt);
+    this.player.x += this.movement * 205 * dt;
+    this.movePlayer(this.player.x);
+
+    this.reloadTimer -= dt;
+    if (this.reloadTimer <= 0) this.fire();
 
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnWaveEnemy();
-      this.spawnTimer = Math.max(0.42, 1.55 - this.wave * 0.055) + Math.random() * 0.42;
+      this.spawnTimer = Math.max(1.1, 2.65 - (this.wave - 1) * 0.065) + Math.random() * 0.55;
     }
 
     for (let i = this.arrows.length - 1; i >= 0; i -= 1) this.updateArrow(i, dt);
@@ -117,36 +134,36 @@ export class Game {
     }
     const roll = Math.random();
     let type = "balloon";
-    if (this.wave >= 2 && roll < 0.58) type = "bat";
-    if (this.wave >= 3 && roll > 0.84) type = "brute";
+    if (this.wave >= 2 && roll < 0.5) type = "bat";
+    if (this.wave >= 3 && roll > 0.88) type = "brute";
     this.spawnTarget(type);
   }
 
   spawnTarget(type) {
     const fromLeft = Math.random() < 0.5;
     const config = {
-      balloon: { radius: 17, health: 1, speed: 46, drift: 13, xp: 1, color: "#ff7187" },
-      bat: { radius: 19, health: 2 + Math.floor(this.wave / 4), speed: 66, drift: 21, xp: 2, color: "#9f8aff" },
-      brute: { radius: 25, health: 4 + Math.floor(this.wave / 3), speed: 32, drift: 10, xp: 3, color: "#ff9c5c" },
-      boss: { radius: 34, health: 22 + this.wave * 3, speed: 34, drift: 10, xp: 10, color: "#ff536f" },
+      balloon: { radius: 17, health: 1, speed: 25, drift: 3, xp: 1, color: "#ff7187" },
+      bat: { radius: 19, health: 2 + Math.floor(this.wave / 5), speed: 39, drift: 6, xp: 2, color: "#9f8aff" },
+      brute: { radius: 25, health: 4 + Math.floor(this.wave / 4), speed: 22, drift: 5, xp: 3, color: "#ff9c5c" },
+      boss: { radius: 34, health: 18 + this.wave * 2, speed: 24, drift: 1, xp: 10, color: "#ff536f" },
     }[type];
     this.targets.push({
       id: this.nextEntityId++, type,
       x: fromLeft ? -config.radius : WIDTH + config.radius,
-      y: type === "boss" ? 105 : randomBetween(75, 355),
-      vx: (fromLeft ? 1 : -1) * (config.speed + this.wave * 2),
-      vy: type === "balloon" ? 7 : (type === "boss" ? 0 : 15 + this.wave * 1.5),
+      y: type === "boss" ? 105 : randomBetween(75, 340),
+      vx: (fromLeft ? 1 : -1) * (config.speed + this.wave * 0.7),
+      vy: type === "balloon" ? 1.5 : (type === "boss" ? 0 : 4 + this.wave * 0.25),
       radius: config.radius, health: config.health, maxHealth: config.health,
       xp: config.xp, color: config.color, phase: Math.random() * 6,
-      slowTimer: 0, shootTimer: type === "boss" ? 1.1 : (type === "brute" ? 2.4 : 3 + Math.random() * 2),
+      slowTimer: 0, shootTimer: type === "boss" ? 2.8 : (type === "brute" ? 4 : 5 + Math.random() * 2),
     });
   }
 
   updateTarget(target, dt) {
     target.slowTimer = Math.max(0, target.slowTimer - dt);
-    const slow = target.slowTimer > 0 ? 0.48 : 1;
+    const slow = target.slowTimer > 0 ? 0.35 : 1;
     target.x += target.vx * slow * dt;
-    target.y += (target.vy + Math.sin(this.time * 2 + target.phase) * 9) * slow * dt;
+    target.y += (target.vy + Math.sin(this.time * 1.7 + target.phase) * target.drift) * slow * dt;
     if (target.x < target.radius || target.x > WIDTH - target.radius) target.vx *= -1;
     target.x = Math.max(target.radius, Math.min(WIDTH - target.radius, target.x));
 
@@ -154,7 +171,7 @@ export class Game {
       target.shootTimer -= dt;
       if (target.shootTimer <= 0) {
         this.fireEnemyShot(target);
-        target.shootTimer = target.type === "boss" ? 1.2 : 2.5;
+        target.shootTimer = target.type === "boss" ? 2.8 : 4.5;
       }
     }
     if (target.y > 548) {
@@ -167,13 +184,16 @@ export class Game {
     const dx = this.player.x - target.x;
     const dy = this.player.y - target.y;
     const length = Math.max(1, Math.hypot(dx, dy));
-    const speed = target.type === "boss" ? 190 : 140;
-    this.enemyShots.push({ x: target.x, y: target.y, vx: dx / length * speed, vy: dy / length * speed, radius: target.type === "boss" ? 7 : 5 });
+    const speed = target.type === "boss" ? 145 : 105;
+    this.enemyShots.push({
+      x: target.x, y: target.y, vx: dx / length * speed, vy: dy / length * speed,
+      radius: target.type === "boss" ? 7 : 5,
+    });
   }
 
   updateArrow(index, dt) {
     const arrow = this.arrows[index];
-    arrow.vy += GRAVITY * dt;
+    arrow.vy += arrow.gravity * dt;
     arrow.x += arrow.vx * dt;
     arrow.y += arrow.vy * dt;
     arrow.life -= dt;
@@ -204,12 +224,20 @@ export class Game {
   }
 
   applyElement(arrow, target) {
-    if (arrow.element === "ice") target.slowTimer = 2.6;
+    if (arrow.element === "ice") {
+      target.slowTimer = (this.evolvedGlacial ? 5 : 3.2) + this.levelOf("spellbinder") * 0.5;
+      if (this.evolvedGlacial) {
+        for (const nearby of this.targets) {
+          if (nearby !== target && Math.hypot(nearby.x - target.x, nearby.y - target.y) < 88) nearby.slowTimer = 4 + this.levelOf("spellbinder") * 0.5;
+        }
+        this.burst(target.x, target.y, "#9be8ff", 10);
+      }
+    }
     if (arrow.element === "fire" || arrow.element === "phoenix") {
-      const radius = arrow.element === "phoenix" ? 100 : 58 + this.levelOf("fireArrow") * 9;
+      const radius = arrow.element === "phoenix" ? 105 : 58 + this.levelOf("fireArrow") * 9;
       const damage = arrow.element === "phoenix" ? 3 : 1;
       for (const nearby of [...this.targets]) {
-        if (nearby.id !== target.id && Math.hypot(nearby.x - target.x, nearby.y - target.y) < radius) {
+        if (nearby !== target && Math.hypot(nearby.x - target.x, nearby.y - target.y) < radius) {
           this.damageTarget(nearby, damage);
         }
       }
@@ -218,7 +246,7 @@ export class Game {
     if (arrow.element === "lightning") {
       const chainCount = Math.min(3, 1 + this.levelOf("lightning"));
       const nearby = this.targets
-        .filter((enemy) => enemy.id !== target.id && Math.hypot(enemy.x - target.x, enemy.y - target.y) < 128)
+        .filter((enemy) => enemy !== target && Math.hypot(enemy.x - target.x, enemy.y - target.y) < 128)
         .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))
         .slice(0, chainCount);
       for (const enemy of nearby) this.damageTarget(enemy, 1);
@@ -261,7 +289,8 @@ export class Game {
   }
 
   updateOrbs(dt) {
-    const magnetRadius = 66 + this.levelOf("magnet") * 42;
+    const magnetLevel = this.levelOf("magnet");
+    const magnetRadius = 120 + magnetLevel * 60;
     for (let i = this.orbs.length - 1; i >= 0; i -= 1) {
       const orb = this.orbs[i];
       const dx = this.player.x - orb.x;
@@ -269,7 +298,7 @@ export class Game {
       const distance = Math.max(1, Math.hypot(dx, dy));
       orb.phase += dt * 4;
       if (distance < magnetRadius) {
-        const speed = 180 + Math.max(0, magnetRadius - distance) * 2.2;
+        const speed = 145 + magnetLevel * 45 + Math.max(0, magnetRadius - distance) * 0.8;
         orb.x += dx / distance * speed * dt;
         orb.y += dy / distance * speed * dt;
       }
@@ -290,11 +319,15 @@ export class Game {
 
   chooseUpgrade(id) {
     if (this.mode !== "levelup" || !this.currentChoices.some((choice) => choice.id === id)) return;
-    if (id === "phoenix") this.evolved = true;
+    if (id === "phoenix") this.evolvedPhoenix = true;
+    else if (id === "arrowStorm") this.evolvedStorm = true;
+    else if (id === "glacialBarrage") this.evolvedGlacial = true;
+    else if (id === "ballista") this.evolvedBallista = true;
     else if (id === "secondWind") this.player.health = Math.min(this.player.maxHealth, this.player.health + 1);
     else this.upgrades[id] = this.levelOf(id) + 1;
+
     this.level += 1;
-    this.xpToNext = Math.ceil(this.xpToNext * 1.34 + 2);
+    this.xpToNext = Math.ceil(this.xpToNext * 1.28 + 2);
     this.currentChoices = [];
     if (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
@@ -308,7 +341,7 @@ export class Game {
   damagePlayer(amount) {
     if (this.player.invulnerable > 0 || this.mode !== "playing") return;
     this.player.health = Math.max(0, this.player.health - amount);
-    this.player.invulnerable = 0.8;
+    this.player.invulnerable = 1;
     this.hitFlash = 0.22;
     if (this.player.health <= 0) this.mode = "gameover";
   }
