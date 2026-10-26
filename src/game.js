@@ -1,129 +1,341 @@
 import { ObjectPool } from "./pool.js";
+import { getUpgradeChoices } from "./upgrades.js";
 
 const WIDTH = 360;
 const HEIGHT = 640;
 const GRAVITY = 310;
+const randomBetween = (min, max) => min + Math.random() * (max - min);
 
 export class Game {
-  constructor() {
-    this.player = { x: WIDTH / 2, y: 570 };
+  constructor() { this.reset(); }
+
+  reset() {
+    this.player = { x: WIDTH / 2, y: 568, radius: 17, health: 5, maxHealth: 5, invulnerable: 0 };
     this.arrows = [];
     this.targets = [];
+    this.enemyShots = [];
+    this.orbs = [];
     this.particles = [];
     this.score = 0;
-    this.spawnTimer = 0.5;
     this.time = 0;
+    this.wave = 1;
+    this.spawnTimer = 0.6;
+    this.lastBossWave = 0;
+    this.nextEntityId = 1;
+    this.mode = "playing";
+    this.level = 1;
+    this.xp = 0;
+    this.xpToNext = 5;
+    this.upgrades = {};
+    this.evolved = false;
+    this.currentChoices = [];
+    this.hitFlash = 0;
+    this.reloadTimer = 0;
     this.arrowPool = new ObjectPool(
-      () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, active: false }),
-      (arrow, x, y, vx, vy) => Object.assign(arrow, { x, y, vx, vy, life: 3, active: true }),
-      12,
+      () => ({}),
+      (arrow, x, y, vx, vy, attributes) => Object.assign(arrow, {
+        x, y, vx, vy, life: 3, active: true, hitIds: new Set(), ...attributes,
+      }),
+      16,
     );
     this.particlePool = new ObjectPool(
-      () => ({ x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 0, radius: 0 }),
-      (particle, x, y, vx, vy, life, radius) =>
-        Object.assign(particle, { x, y, vx, vy, life, maxLife: life, radius }),
-      24,
+      () => ({}),
+      (particle, x, y, vx, vy, life, radius, color) =>
+        Object.assign(particle, { x, y, vx, vy, life, maxLife: life, radius, color }),
+      32,
+    );
+    this.orbPool = new ObjectPool(
+      () => ({}),
+      (orb, x, y, value) => Object.assign(orb, { x, y, value, radius: 6, phase: Math.random() * 6 }),
+      12,
     );
   }
 
+  levelOf(id) { return this.upgrades[id] || 0; }
+
   movePlayer(x) {
-    this.player.x = Math.max(38, Math.min(WIDTH - 38, x));
+    this.player.x = Math.max(35, Math.min(WIDTH - 35, x));
   }
 
   fire(angle, power) {
-    const speed = 470 + 330 * power;
-    const arrow = this.arrowPool.acquire(
-      this.player.x,
-      this.player.y - 22,
-      Math.cos(angle) * speed,
-      -Math.sin(angle) * speed,
-    );
-    this.arrows.push(arrow);
+    if (this.mode !== "playing" || this.reloadTimer > 0) return false;
+    const velocityLevel = this.levelOf("arrowVelocity");
+    const speed = (450 + 320 * power) * (1 + velocityLevel * 0.12);
+    const multi = this.levelOf("multishot");
+    const arrowCount = 1 + multi;
+    const spread = 0.12 + multi * 0.035;
+    for (let i = 0; i < arrowCount; i += 1) {
+      const offset = (i - (arrowCount - 1) / 2) * spread;
+      const shotAngle = angle + offset;
+      this.arrows.push(this.arrowPool.acquire(
+        this.player.x, this.player.y - 23,
+        Math.cos(shotAngle) * speed, -Math.sin(shotAngle) * speed,
+        {
+          damage: 1 + this.levelOf("attackPower"),
+          pierceLeft: this.levelOf("piercing"),
+          bouncesLeft: this.levelOf("ricochet"),
+          element: this.evolved ? "phoenix" : (this.levelOf("fireArrow") > 0 ? "fire" : (this.levelOf("iceArrow") > 0 ? "ice" : (this.levelOf("lightning") > 0 ? "lightning" : "normal"))),
+        },
+      ));
+    }
+    this.reloadTimer = Math.max(0.12, 0.44 - this.levelOf("drawSpeed") * 0.055);
+    return true;
   }
 
   update(delta) {
     const dt = Math.min(delta, 1 / 30);
+    if (this.mode !== "playing") return;
     this.time += dt;
-    this.spawnTimer -= dt;
+    this.wave = 1 + Math.floor(this.time / 24);
+    this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
+    this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.reloadTimer = Math.max(0, this.reloadTimer - dt);
 
+    this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
-      this.spawnTarget();
-      this.spawnTimer = Math.max(0.55, 1.55 - this.time * 0.006) + Math.random() * 0.45;
+      this.spawnWaveEnemy();
+      this.spawnTimer = Math.max(0.42, 1.55 - this.wave * 0.055) + Math.random() * 0.42;
     }
 
-    for (let i = this.arrows.length - 1; i >= 0; i -= 1) {
-      const arrow = this.arrows[i];
-      arrow.vy += GRAVITY * dt;
-      arrow.x += arrow.vx * dt;
-      arrow.y += arrow.vy * dt;
-      arrow.life -= dt;
+    for (let i = this.arrows.length - 1; i >= 0; i -= 1) this.updateArrow(i, dt);
+    for (let i = this.targets.length - 1; i >= 0; i -= 1) this.updateTarget(this.targets[i], dt);
+    for (let i = this.enemyShots.length - 1; i >= 0; i -= 1) this.updateEnemyShot(i, dt);
+    this.updateOrbs(dt);
+    this.updateParticles(dt);
+  }
 
-      let hitIndex = -1;
-      for (let j = this.targets.length - 1; j >= 0; j -= 1) {
-        const target = this.targets[j];
-        if (Math.hypot(arrow.x - target.x, arrow.y - target.y) < target.radius + 5) {
-          hitIndex = j;
-          break;
+  spawnWaveEnemy() {
+    if (this.wave >= 5 && this.wave % 5 === 0 && this.lastBossWave !== this.wave) {
+      this.lastBossWave = this.wave;
+      this.spawnTarget("boss");
+      return;
+    }
+    const roll = Math.random();
+    let type = "balloon";
+    if (this.wave >= 2 && roll < 0.58) type = "bat";
+    if (this.wave >= 3 && roll > 0.84) type = "brute";
+    this.spawnTarget(type);
+  }
+
+  spawnTarget(type) {
+    const fromLeft = Math.random() < 0.5;
+    const config = {
+      balloon: { radius: 17, health: 1, speed: 46, drift: 13, xp: 1, color: "#ff7187" },
+      bat: { radius: 19, health: 2 + Math.floor(this.wave / 4), speed: 66, drift: 21, xp: 2, color: "#9f8aff" },
+      brute: { radius: 25, health: 4 + Math.floor(this.wave / 3), speed: 32, drift: 10, xp: 3, color: "#ff9c5c" },
+      boss: { radius: 34, health: 22 + this.wave * 3, speed: 34, drift: 10, xp: 10, color: "#ff536f" },
+    }[type];
+    this.targets.push({
+      id: this.nextEntityId++, type,
+      x: fromLeft ? -config.radius : WIDTH + config.radius,
+      y: type === "boss" ? 105 : randomBetween(75, 355),
+      vx: (fromLeft ? 1 : -1) * (config.speed + this.wave * 2),
+      vy: type === "balloon" ? 7 : (type === "boss" ? 0 : 15 + this.wave * 1.5),
+      radius: config.radius, health: config.health, maxHealth: config.health,
+      xp: config.xp, color: config.color, phase: Math.random() * 6,
+      slowTimer: 0, shootTimer: type === "boss" ? 1.1 : (type === "brute" ? 2.4 : 3 + Math.random() * 2),
+    });
+  }
+
+  updateTarget(target, dt) {
+    target.slowTimer = Math.max(0, target.slowTimer - dt);
+    const slow = target.slowTimer > 0 ? 0.48 : 1;
+    target.x += target.vx * slow * dt;
+    target.y += (target.vy + Math.sin(this.time * 2 + target.phase) * 9) * slow * dt;
+    if (target.x < target.radius || target.x > WIDTH - target.radius) target.vx *= -1;
+    target.x = Math.max(target.radius, Math.min(WIDTH - target.radius, target.x));
+
+    if (target.type === "boss" || target.type === "brute") {
+      target.shootTimer -= dt;
+      if (target.shootTimer <= 0) {
+        this.fireEnemyShot(target);
+        target.shootTimer = target.type === "boss" ? 1.2 : 2.5;
+      }
+    }
+    if (target.y > 548) {
+      this.damagePlayer(target.type === "boss" ? 2 : 1);
+      this.removeTarget(target);
+    }
+  }
+
+  fireEnemyShot(target) {
+    const dx = this.player.x - target.x;
+    const dy = this.player.y - target.y;
+    const length = Math.max(1, Math.hypot(dx, dy));
+    const speed = target.type === "boss" ? 190 : 140;
+    this.enemyShots.push({ x: target.x, y: target.y, vx: dx / length * speed, vy: dy / length * speed, radius: target.type === "boss" ? 7 : 5 });
+  }
+
+  updateArrow(index, dt) {
+    const arrow = this.arrows[index];
+    arrow.vy += GRAVITY * dt;
+    arrow.x += arrow.vx * dt;
+    arrow.y += arrow.vy * dt;
+    arrow.life -= dt;
+
+    if ((arrow.x < 5 || arrow.x > WIDTH - 5) && arrow.bouncesLeft > 0) {
+      arrow.x = Math.max(5, Math.min(WIDTH - 5, arrow.x));
+      arrow.vx *= -1;
+      arrow.bouncesLeft -= 1;
+    }
+
+    for (let j = this.targets.length - 1; j >= 0; j -= 1) {
+      const target = this.targets[j];
+      if (arrow.hitIds.has(target.id)) continue;
+      if (Math.hypot(arrow.x - target.x, arrow.y - target.y) >= target.radius + 5) continue;
+      arrow.hitIds.add(target.id);
+      this.damageTarget(target, arrow.damage);
+      this.applyElement(arrow, target);
+      if (arrow.pierceLeft > 0) arrow.pierceLeft -= 1;
+      else {
+        this.releaseArrow(index);
+        return;
+      }
+    }
+
+    if (arrow.x < -30 || arrow.x > WIDTH + 30 || arrow.y < -40 || arrow.y > HEIGHT + 24 || arrow.life <= 0) {
+      this.releaseArrow(index);
+    }
+  }
+
+  applyElement(arrow, target) {
+    if (arrow.element === "ice") target.slowTimer = 2.6;
+    if (arrow.element === "fire" || arrow.element === "phoenix") {
+      const radius = arrow.element === "phoenix" ? 100 : 58 + this.levelOf("fireArrow") * 9;
+      const damage = arrow.element === "phoenix" ? 3 : 1;
+      for (const nearby of [...this.targets]) {
+        if (nearby.id !== target.id && Math.hypot(nearby.x - target.x, nearby.y - target.y) < radius) {
+          this.damageTarget(nearby, damage);
         }
       }
+      this.burst(target.x, target.y, arrow.element === "phoenix" ? "#ffe37d" : "#ff995b", 12);
+    }
+    if (arrow.element === "lightning") {
+      const chainCount = Math.min(3, 1 + this.levelOf("lightning"));
+      const nearby = this.targets
+        .filter((enemy) => enemy.id !== target.id && Math.hypot(enemy.x - target.x, enemy.y - target.y) < 128)
+        .sort((a, b) => Math.hypot(a.x - target.x, a.y - target.y) - Math.hypot(b.x - target.x, b.y - target.y))
+        .slice(0, chainCount);
+      for (const enemy of nearby) this.damageTarget(enemy, 1);
+      this.burst(target.x, target.y, "#91eaff", 5);
+    }
+  }
 
-      if (hitIndex >= 0) {
-        const [target] = this.targets.splice(hitIndex, 1);
-        this.score += 1;
-        this.burst(target.x, target.y, target.color);
-        this.releaseArrow(i);
-      } else if (arrow.x < -24 || arrow.x > WIDTH + 24 || arrow.y < -35 || arrow.y > HEIGHT + 20 || arrow.life <= 0) {
-        this.releaseArrow(i);
+  damageTarget(target, amount) {
+    if (!target || !this.targets.includes(target)) return;
+    target.health -= amount;
+    this.burst(target.x, target.y, target.color, 3);
+    if (target.health <= 0) this.killTarget(target);
+  }
+
+  killTarget(target) {
+    if (!this.targets.includes(target)) return;
+    this.score += target.type === "boss" ? 10 : 1;
+    const index = this.targets.indexOf(target);
+    this.targets.splice(index, 1);
+    const orbCount = target.xp > 5 ? 5 : target.xp;
+    for (let i = 0; i < orbCount; i += 1) {
+      this.orbs.push(this.orbPool.acquire(
+        target.x + randomBetween(-12, 12), target.y + randomBetween(-10, 10),
+        target.xp > 5 ? 2 : 1,
+      ));
+    }
+    this.burst(target.x, target.y, target.color, target.type === "boss" ? 22 : 10);
+  }
+
+  updateEnemyShot(index, dt) {
+    const shot = this.enemyShots[index];
+    shot.x += shot.vx * dt;
+    shot.y += shot.vy * dt;
+    if (Math.hypot(shot.x - this.player.x, shot.y - (this.player.y - 7)) < shot.radius + 14) {
+      this.enemyShots.splice(index, 1);
+      this.damagePlayer(1);
+    } else if (shot.x < -20 || shot.x > WIDTH + 20 || shot.y < -20 || shot.y > HEIGHT + 20) {
+      this.enemyShots.splice(index, 1);
+    }
+  }
+
+  updateOrbs(dt) {
+    const magnetRadius = 66 + this.levelOf("magnet") * 42;
+    for (let i = this.orbs.length - 1; i >= 0; i -= 1) {
+      const orb = this.orbs[i];
+      const dx = this.player.x - orb.x;
+      const dy = (this.player.y - 8) - orb.y;
+      const distance = Math.max(1, Math.hypot(dx, dy));
+      orb.phase += dt * 4;
+      if (distance < magnetRadius) {
+        const speed = 180 + Math.max(0, magnetRadius - distance) * 2.2;
+        orb.x += dx / distance * speed * dt;
+        orb.y += dy / distance * speed * dt;
+      }
+      if (distance < 22) {
+        this.xp += orb.value;
+        this.orbPool.release(this.orbs.splice(i, 1)[0]);
+        this.checkLevelUp();
       }
     }
+  }
 
-    for (const target of this.targets) {
-      target.x += target.vx * dt;
-      target.y += Math.sin(this.time * 2.4 + target.phase) * 4 * dt;
-      if (target.x < target.radius || target.x > WIDTH - target.radius) target.vx *= -1;
-      target.x = Math.max(target.radius, Math.min(WIDTH - target.radius, target.x));
-    }
+  checkLevelUp() {
+    if (this.mode !== "playing" || this.xp < this.xpToNext) return;
+    this.xp -= this.xpToNext;
+    this.mode = "levelup";
+    this.currentChoices = getUpgradeChoices(this);
+  }
 
-    for (let i = this.particles.length - 1; i >= 0; i -= 1) {
-      const particle = this.particles[i];
-      particle.life -= dt;
-      particle.x += particle.vx * dt;
-      particle.y += particle.vy * dt;
-      particle.vx *= 0.985;
-      particle.vy += 100 * dt;
-      if (particle.life <= 0) {
-        this.particlePool.release(this.particles.splice(i, 1)[0]);
-      }
+  chooseUpgrade(id) {
+    if (this.mode !== "levelup" || !this.currentChoices.some((choice) => choice.id === id)) return;
+    if (id === "phoenix") this.evolved = true;
+    else this.upgrades[id] = this.levelOf(id) + 1;
+    this.level += 1;
+    this.xpToNext = Math.ceil(this.xpToNext * 1.34 + 2);
+    this.currentChoices = [];
+    if (this.xp >= this.xpToNext) {
+      this.xp -= this.xpToNext;
+      this.currentChoices = getUpgradeChoices(this);
+      this.mode = "levelup";
+    } else {
+      this.mode = "playing";
     }
+  }
+
+  damagePlayer(amount) {
+    if (this.player.invulnerable > 0 || this.mode !== "playing") return;
+    this.player.health = Math.max(0, this.player.health - amount);
+    this.player.invulnerable = 0.8;
+    this.hitFlash = 0.22;
+    if (this.player.health <= 0) this.mode = "gameover";
+  }
+
+  removeTarget(target) {
+    const index = this.targets.indexOf(target);
+    if (index >= 0) this.targets.splice(index, 1);
   }
 
   releaseArrow(index) {
     this.arrowPool.release(this.arrows.splice(index, 1)[0]);
   }
 
-  spawnTarget() {
-    const radius = 15 + Math.random() * 6;
-    const fromLeft = Math.random() < 0.5;
-    const colors = ["#ff6e85", "#ffc45f", "#72d8c0", "#a68bff"];
-    this.targets.push({
-      x: fromLeft ? -radius : WIDTH + radius,
-      y: 82 + Math.random() * 300,
-      vx: (fromLeft ? 1 : -1) * (35 + Math.random() * 44 + this.time * 0.12),
-      radius,
-      phase: Math.random() * Math.PI * 2,
-      color: colors[Math.floor(Math.random() * colors.length)],
-    });
-  }
-
-  burst(x, y, color) {
-    for (let i = 0; i < 10; i += 1) {
+  burst(x, y, color, count = 6) {
+    for (let i = 0; i < count; i += 1) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 35 + Math.random() * 125;
+      const speed = randomBetween(28, 130);
       this.particles.push(this.particlePool.acquire(
         x, y, Math.cos(angle) * speed, Math.sin(angle) * speed,
-        0.3 + Math.random() * 0.35, 2 + Math.random() * 2,
+        randomBetween(0.22, 0.5), randomBetween(1.5, 3.5), color,
       ));
-      this.particles[this.particles.length - 1].color = color;
+    }
+  }
+
+  updateParticles(dt) {
+    for (let i = this.particles.length - 1; i >= 0; i -= 1) {
+      const particle = this.particles[i];
+      particle.life -= dt;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vx *= 0.985;
+      particle.vy += 80 * dt;
+      if (particle.life <= 0) this.particlePool.release(this.particles.splice(i, 1)[0]);
     }
   }
 }
