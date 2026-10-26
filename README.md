@@ -8,12 +8,10 @@ Sirva esta pasta por HTTP, por exemplo com python -m http.server 8000, e abra ht
 
 ## Controles
 
-- O arco dispara automaticamente para cima, em linha reta.
 - O arqueiro fica fixo na base e dispara automaticamente para cima, em linha reta.
-- Não há controles de movimento ou mira; a única interação é escolher upgrades e recompensas.
-- Apenas inimigos derrotados deixam gemas de XP; elas voam automaticamente até o arqueiro fixo.
-- Chefes aparecem a cada três ondas e oferecem uma escolha de item raro ao serem derrotados.
-- Ao subir de nível, o jogo pausa para escolher uma melhoria.
+- Não há controles de movimento ou mira; a interação é escolher upgrades ao subir de nível e itens após derrotar chefes.
+- Apenas inimigos derrotados deixam gemas de XP; elas voam automaticamente até o arqueiro.
+- Chefes surgem a cada três ondas e oferecem três opções de item raro.
 
 ## Ritmo e evolução
 
