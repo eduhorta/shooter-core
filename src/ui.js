@@ -48,7 +48,7 @@ export class UIManager {
     if (game.mode === "levelup") {
       const kicker = document.createElement("p");
       kicker.className = "overlay-kicker";
-      kicker.textContent = "NÍVEL " + game.level + " ALCANÇADO";
+      kicker.textContent = "NÍVEL " + (game.level + 1) + " ALCANÇADO";
       const title = document.createElement("h2");
       title.textContent = "Escolha um upgrade";
       const copy = document.createElement("p");
