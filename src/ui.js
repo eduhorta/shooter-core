@@ -45,15 +45,15 @@ export class UIManager {
     this.overlay.hidden = false;
     const panel = document.createElement("div");
     panel.className = "overlay-panel";
-    if (game.mode === "levelup") {
+    if (game.mode === "levelup" || game.mode === "bossloot") {
       const kicker = document.createElement("p");
       kicker.className = "overlay-kicker";
-      kicker.textContent = "NÍVEL " + (game.level + 1) + " ALCANÇADO";
+      kicker.textContent = game.mode === "bossloot" ? "RECOMPENSA DE CHEFE" : "NÍVEL " + (game.level + 1) + " ALCANÇADO";
       const title = document.createElement("h2");
-      title.textContent = "Escolha um upgrade";
+      title.textContent = game.mode === "bossloot" ? "Escolha um item" : "Escolha um upgrade";
       const copy = document.createElement("p");
       copy.className = "overlay-copy";
-      copy.textContent = "O tempo parou. Escolha uma melhoria para continuar sobrevivendo.";
+      copy.textContent = game.mode === "bossloot" ? "O chefe caiu. Escolha um item raro para fortalecer sua build." : "O tempo parou. Escolha uma melhoria para continuar sobrevivendo.";
       const list = document.createElement("div");
       list.className = "upgrade-list";
 
@@ -74,7 +74,8 @@ export class UIManager {
         copyBlock.append(name, description);
         button.append(icon, copyBlock);
         button.addEventListener("click", () => {
-          game.chooseUpgrade(choice.id);
+          if (game.mode === "bossloot") game.chooseBossReward(choice.id);
+          else game.chooseUpgrade(choice.id);
           this.lastMode = "";
           this.render();
         });
