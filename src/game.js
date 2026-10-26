@@ -144,7 +144,7 @@ export class Game {
       y: type === "boss" ? 105 : randomBetween(90, 330),
       vx: direction * (config.speed + this.wave * 0.7),
       vy: type === "balloon" ? 1.5 : (type === "boss" ? 0 : 4 + this.wave * 0.25),
-      radius: config.radius, health: config.health, maxHealth: config.health,
+      radius: config.radius, drift: config.drift, health: config.health, maxHealth: config.health,
       xp: config.xp, color: config.color, phase: Math.random() * 6,
       slowTimer: 0, shootTimer: type === "boss" ? 2.8 : (type === "brute" ? 4 : 5 + Math.random() * 2),
     });
