@@ -286,6 +286,7 @@ export class Game {
   chooseUpgrade(id) {
     if (this.mode !== "levelup" || !this.currentChoices.some((choice) => choice.id === id)) return;
     if (id === "phoenix") this.evolved = true;
+    else if (id === "secondWind") this.player.health = Math.min(this.player.maxHealth, this.player.health + 1);
     else this.upgrades[id] = this.levelOf(id) + 1;
     this.level += 1;
     this.xpToNext = Math.ceil(this.xpToNext * 1.34 + 2);
