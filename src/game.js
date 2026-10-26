@@ -67,6 +67,11 @@ export class Game {
     for (let i = 0; i < arrowCount; i += 1) {
       const offset = (i - (arrowCount - 1) / 2) * spread;
       const shotAngle = angle + offset;
+      const elements = [];
+      if (this.levelOf("fireArrow") > 0) elements.push("fire");
+      if (this.levelOf("iceArrow") > 0) elements.push("ice");
+      if (this.levelOf("lightning") > 0) elements.push("lightning");
+      const element = this.evolved ? "phoenix" : (elements.length ? elements[Math.floor(Math.random() * elements.length)] : "normal");
       this.arrows.push(this.arrowPool.acquire(
         this.player.x, this.player.y - 23,
         Math.cos(shotAngle) * speed, -Math.sin(shotAngle) * speed,
@@ -74,7 +79,7 @@ export class Game {
           damage: 1 + this.levelOf("attackPower"),
           pierceLeft: this.levelOf("piercing"),
           bouncesLeft: this.levelOf("ricochet"),
-          element: this.evolved ? "phoenix" : (this.levelOf("fireArrow") > 0 ? "fire" : (this.levelOf("iceArrow") > 0 ? "ice" : (this.levelOf("lightning") > 0 ? "lightning" : "normal"))),
+          element,
         },
       ));
     }
