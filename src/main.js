@@ -15,7 +15,7 @@ function frame(timestamp) {
   const delta = previousTime === 0 ? 0 : (timestamp - previousTime) / 1000;
   previousTime = timestamp;
   game.update(delta);
-  renderer.render(game, input.getAim(), input.getDragMode());
+  renderer.render(game);
   ui.render();
   window.requestAnimationFrame(frame);
 }
