@@ -97,7 +97,7 @@ export class Game {
     const dt = Math.min(delta, 1 / 30);
     if (this.mode !== "playing") return;
     this.time += dt;
-    this.wave = 1 + Math.floor(this.time / 38);
+    this.wave = 1 + Math.floor(this.time / 34);
     this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
     this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.reloadTimer -= dt;
@@ -106,7 +106,7 @@ export class Game {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0) {
       this.spawnWaveEnemy();
-      this.spawnTimer = Math.max(1.1, 2.65 - (this.wave - 1) * 0.065) + Math.random() * 0.55;
+      this.spawnTimer = Math.max(0.95, 2.3 - (this.wave - 1) * 0.07) + Math.random() * 0.45;
     }
 
     for (let i = this.arrows.length - 1; i >= 0; i -= 1) this.updateArrow(i, dt);
@@ -129,7 +129,6 @@ export class Game {
   }
 
   spawnTarget(type) {
-    const direction = Math.random() < 0.5 ? 1 : -1;
     const config = {
       balloon: { radius: 17, health: 1, speed: 25, drift: 3, xp: 1, color: "#ff7187" },
       bat: { radius: 19, health: 2 + Math.floor(this.wave / 5), speed: 39, drift: 6, xp: 2, color: "#9f8aff" },
@@ -140,10 +139,9 @@ export class Game {
       id: this.nextEntityId++, type,
       x: type === "boss" ? WIDTH / 2 : randomBetween(42, WIDTH - 42),
       y: type === "boss" ? 105 : randomBetween(90, 330),
-      vx: direction * (config.speed + this.wave * 0.7),
-      vy: type === "balloon" ? 1.5 : (type === "boss" ? 0 : 4 + this.wave * 0.25),
-      radius: config.radius, drift: config.drift, health: config.health, maxHealth: config.health,
-      xp: config.xp, color: config.color, phase: Math.random() * 6,
+      speed: config.speed * 1.25,
+      radius: config.radius, health: config.health, maxHealth: config.health,
+      xp: config.xp, color: config.color,
       slowTimer: 0,
     });
   }
@@ -151,10 +149,12 @@ export class Game {
   updateTarget(target, dt) {
     target.slowTimer = Math.max(0, target.slowTimer - dt);
     const slow = target.slowTimer > 0 ? 0.35 : 1;
-    target.x += target.vx * slow * dt;
-    target.y += (target.vy + Math.sin(this.time * 1.7 + target.phase) * target.drift) * slow * dt;
-    if (target.x < target.radius || target.x > WIDTH - target.radius) target.vx *= -1;
-    target.x = Math.max(target.radius, Math.min(WIDTH - target.radius, target.x));
+    const dx = this.player.x - target.x;
+    const dy = this.player.y - target.y;
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    const travel = target.speed * slow * dt;
+    target.x += (dx / distance) * travel;
+    target.y += (dy / distance) * travel;
 
     const playerDistance = Math.hypot(target.x - this.player.x, target.y - this.player.y);
     if (playerDistance <= target.radius + this.player.radius) {
