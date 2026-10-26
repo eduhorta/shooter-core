@@ -20,6 +20,8 @@ export function getUpgradeChoices(game) {
       description: upgrade.description + " Nível " + ((game.upgrades[upgrade.id] || 0) + 1) + " de " + upgrade.max + ".",
     }));
 
+  choices.push({ id: "secondWind", name: "Fôlego renovado", icon: "♥", description: "Recupere 1 ponto de vida.", max: Infinity });
+
   if (!game.evolved && (game.upgrades.fireArrow || 0) >= 3 && (game.upgrades.combustion || 0) >= 2) {
     choices.push({
       id: "phoenix",
