@@ -8,15 +8,14 @@ Sirva esta pasta por HTTP, por exemplo com python -m http.server 8000, e abra ht
 
 ## Controles
 
-- O arco dispara automaticamente para cima, em linha reta.
-- Toque/arraste horizontalmente para alinhar o arqueiro aos alvos e desviar.
-- No teclado, use A/D ou as setas esquerda/direita.
-- Inimigos derrotados deixam gemas de XP; elas se aproximam do arqueiro e concedem XP ao serem coletadas.
-- Ao subir de nível, o jogo pausa para escolher uma melhoria.
+- O arqueiro fica fixo na base e dispara automaticamente para cima, em linha reta.
+- Não há controles de movimento ou mira; a interação é escolher upgrades ao subir de nível e itens após derrotar chefes.
+- Apenas inimigos derrotados deixam gemas de XP; elas voam automaticamente até o arqueiro.
+- Chefes surgem a cada três ondas e oferecem três opções de item raro.
 
 ## Ritmo e evolução
 
-As ondas iniciais usam balões lentos e alvos espaçados, no ritmo de um jogo de arcade clássico. Morcegos, brutos e chefes entram em ondas posteriores; a cadência sobe gradualmente.
+As ondas começam com balões visíveis e lentos, no ritmo de um jogo de arcade clássico. Morcegos, brutos e chefes entram em ondas posteriores; a cadência sobe gradualmente.
 
 As melhorias seguem o padrão de arma + item passivo no nível máximo antes de oferecer uma evolução. As combinações desta versão são:
 
@@ -31,7 +30,6 @@ O modelo de evolução foi inspirado no padrão de arma + passiva e nos bônus d
 
 - index.html e styles.css: interface vertical responsiva e HUD.
 - src/main.js: loop e inicialização.
-- src/input.js: movimento por Pointer Events e teclado.
 - src/game.js: entidades, física, combate, ondas, XP e progressão.
 - src/upgrades.js e src/ui.js: combinações e interface de level-up/derrota.
 - src/renderer.js: desenho Canvas em mundo lógico 360 × 640.
